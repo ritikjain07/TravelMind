@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Calendar, MapPin, Users, DollarSign, Clock, Plus, X, Wand2, Loader2, Sparkles } from 'lucide-react';
+import { Calendar, MapPin, Users, DollarSign, Clock, Plus, X, Wand2, Loader2, Sparkles, Download, Database } from 'lucide-react';
 import { useUser, useAppContext } from '../context/AppContext';
 import { geminiService } from '../services/geminiService';
+import { PDFService } from '../services/pdfService';
 import type { ItineraryItem, Trip } from '../types';
 
 interface TripPlannerProps {
@@ -23,8 +24,7 @@ export function TripPlanner({ onNavigate, preselectedDestination }: TripPlannerP
     endDate: '',
     budget: preselectedDestination?.estimatedCost ? String(preselectedDestination.estimatedCost * 7) : '', // Estimate for 7 days
     travelers: 1,
-  });
-  const [itinerary, setItinerary] = useState<Partial<ItineraryItem>[]>([]);
+  });  const [itinerary, setItinerary] = useState<Partial<ItineraryItem>[]>([]);
   const [currentStep, setCurrentStep] = useState(1);
   const [isGeneratingItinerary, setIsGeneratingItinerary] = useState(false);
   // Set smart defaults based on preselected destination
@@ -47,7 +47,16 @@ export function TripPlanner({ onNavigate, preselectedDestination }: TripPlannerP
       }));
     }
   }, [preselectedDestination]);
-
+  
+  // Debug logging for button visibility
+  useEffect(() => {
+    console.log('Itinerary state changed:', {
+      length: itinerary.length,
+      items: itinerary,
+      shouldShowButtons: itinerary.length > 0
+    });
+  }, [itinerary]);
+  
   const calculateDuration = () => {
     if (tripDetails.startDate && tripDetails.endDate) {
       const start = new Date(tripDetails.startDate);
@@ -56,6 +65,87 @@ export function TripPlanner({ onNavigate, preselectedDestination }: TripPlannerP
       return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     }
     return 1;
+  };
+
+  // Download functions
+  const downloadPDF = () => {
+    if (itinerary.length === 0) {
+      alert('No itinerary to download. Please add some activities first.');
+      return;
+    }
+
+    if (!tripDetails.startDate || !tripDetails.endDate || !tripDetails.destination) {
+      alert('Please fill in all trip details before downloading.');
+      return;
+    }
+
+    try {
+      const tripDetailsForPDF = {
+        destination: tripDetails.destination,
+        startDate: new Date(tripDetails.startDate),
+        endDate: new Date(tripDetails.endDate),
+        travelers: tripDetails.travelers,
+        budget: tripDetails.budget,
+      };
+
+      // Convert partial itinerary items to full items for PDF
+      const fullItinerary = itinerary.map((item, index): ItineraryItem => ({
+        id: item.id || `temp-${index}`,
+        day: item.day || 1,
+        time: item.time || '09:00',
+        activity: item.activity || 'Untitled Activity',
+        location: item.location || tripDetails.destination,
+        description: item.description || '',
+        estimatedCost: item.estimatedCost || 0,
+        duration: item.duration || 120,
+        type: item.type || 'activity'
+      }));
+
+      PDFService.generateItineraryPDF(fullItinerary, tripDetailsForPDF);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Error generating PDF. Please try again.');
+    }
+  };
+
+  const downloadJSON = () => {
+    if (itinerary.length === 0) {
+      alert('No itinerary to download. Please add some activities first.');
+      return;
+    }
+
+    if (!tripDetails.startDate || !tripDetails.endDate || !tripDetails.destination) {
+      alert('Please fill in all trip details before downloading.');
+      return;
+    }
+
+    try {
+      const tripDetailsForJSON = {
+        destination: tripDetails.destination,
+        startDate: new Date(tripDetails.startDate),
+        endDate: new Date(tripDetails.endDate),
+        travelers: tripDetails.travelers,
+        budget: tripDetails.budget,
+      };
+
+      // Convert partial itinerary items to full items for JSON
+      const fullItinerary = itinerary.map((item, index): ItineraryItem => ({
+        id: item.id || `temp-${index}`,
+        day: item.day || 1,
+        time: item.time || '09:00',
+        activity: item.activity || 'Untitled Activity',
+        location: item.location || tripDetails.destination,
+        description: item.description || '',
+        estimatedCost: item.estimatedCost || 0,
+        duration: item.duration || 120,
+        type: item.type || 'activity'
+      }));
+
+      PDFService.generateJSONBackup(fullItinerary, tripDetailsForJSON);
+    } catch (error) {
+      console.error('Error generating JSON backup:', error);
+      alert('Error generating JSON backup. Please try again.');
+    }
   };
   const generateAIItinerary = async () => {
     if (!user?.preferences || !user?.personality || !tripDetails.destination) {
@@ -181,19 +271,24 @@ export function TripPlanner({ onNavigate, preselectedDestination }: TripPlannerP
           console.log('🎯 FOUND ACTIVITY LINE:', JSON.stringify(trimmedLine));
           console.log('🎯 Line length:', trimmedLine.length);
           console.log('🎯 Character codes:', trimmedLine.split('').slice(0, 10).map(c => c.charCodeAt(0)));
-        }
-          // Extract activities - Updated patterns for actual Gemini format
+        }        // Extract activities - Enhanced patterns for all Gemini formats
         const activityPatterns = [
-          // Primary patterns for the actual Gemini format: * Morning (9:00 AM - 12:00 PM): Activity
+          // Primary patterns for the actual Gemini format
           /^\*\s*(Morning|Afternoon|Evening)\s*\([^)]*\):\s*(.+)/i,                    // * Morning (9:00 AM - 12:00 PM): Activity
-          /^\*\s*(Morning|Afternoon|Evening)\s*&\s*(Afternoon|Evening):\s*(.+)/i,      // * Morning & Afternoon: Activity
+          /^\*\s*(Morning|Afternoon|Evening)\s*&\s*(Afternoon|Evening):\s*(.+)/i,      // * Morning & Afternoon: Activity  
           /^\*\s*(Morning|Afternoon|Evening):\s*(.+)/i,                                // * Morning: Activity
+          
+          // Bullet point patterns without time of day
+          /^\*\s*(.+)/,                                                                // * Any activity (generic)
           
           // Fallback patterns for other possible formats
           /^\*\s*\*\*(Morning|Afternoon|Evening)\s*\([^)]*\):\*\*\s*(.+)/i,           // * **Morning (time):** Activity
           /^\*\s*\*\*(Morning|Afternoon|Evening)\*\*:\s*(.+)/i,                       // * **Morning**: Activity
           /^(Morning|Afternoon|Evening)\s*\([^)]*\):\s*(.+)/i,                        // Morning (time): Activity
-          /^(Morning|Afternoon|Evening):\s*(.+)/i                                     // Morning: Activity
+          /^(Morning|Afternoon|Evening):\s*(.+)/i,                                     // Morning: Activity
+          
+          // Numbered list patterns
+          /^\d+\.\s*(.+)/,                                                             // 1. Activity
         ];
         
         let activityLineMatch = null;
@@ -213,7 +308,11 @@ export function TripPlanner({ onNavigate, preselectedDestination }: TripPlannerP
             // Handle different match group structures based on pattern matched
             let timeOfDay, activityText;
             
-            if (activityLineMatch.length === 3) {
+            if (activityLineMatch.length === 2) {
+              // Generic pattern: [fullMatch, activityText] - no time of day specified
+              [, activityText] = activityLineMatch;
+              timeOfDay = 'Unknown'; // Default when no time specified
+            } else if (activityLineMatch.length === 3) {
               // Standard pattern: [fullMatch, timeOfDay, activityText]
               [, timeOfDay, activityText] = activityLineMatch;
             } else if (activityLineMatch.length === 4) {
@@ -221,9 +320,9 @@ export function TripPlanner({ onNavigate, preselectedDestination }: TripPlannerP
               [, timeOfDay, , activityText] = activityLineMatch;
             }
             
-            // Skip if we couldn't extract the required data
-            if (!timeOfDay || !activityText) {
-              console.log('❌ Missing timeOfDay or activityText:', { timeOfDay, activityText });
+            // Continue if we have activity text (timeOfDay can be undefined for generic patterns)
+            if (!activityText || activityText.trim().length < 5) {
+              console.log('❌ Invalid or too short activityText:', { timeOfDay, activityText });
               continue;
             }
             
@@ -264,24 +363,22 @@ export function TripPlanner({ onNavigate, preselectedDestination }: TripPlannerP
                   break;
                 }
               }
+            }            // Use extracted time or fall back to default time based on period
+            if (extractedTime) {
+              currentTime = extractedTime;
+            } else if (timeOfDay && timeOfDay !== 'Unknown') {
+              switch (timeOfDay.toLowerCase()) {
+                case 'morning':
+                  currentTime = '09:00';
+                  break;
+                case 'afternoon':
+                  currentTime = '14:00';
+                  break;
+                case 'evening':
+                  currentTime = '18:00';
+                  break;
+              }
             }
-          
-          // Use extracted time or fall back to default time based on period
-          if (extractedTime) {
-            currentTime = extractedTime;
-          } else {
-            switch (timeOfDay.toLowerCase()) {
-              case 'morning':
-                currentTime = '09:00';
-                break;
-              case 'afternoon':
-                currentTime = '14:00';
-                break;
-              case 'evening':
-                currentTime = '18:00';
-                break;
-            }
-          }
             // Extract cost info from the line (look for $number patterns in various formats)
           const costPatterns = [
             /\$(\d+)/g,           // Standard $number
@@ -684,8 +781,7 @@ export function TripPlanner({ onNavigate, preselectedDestination }: TripPlannerP
                     <span className="hidden sm:inline">AI Generate</span>
                   </>
                 )}
-              </button>
-              {itinerary.length > 0 && (
+              </button>              {itinerary.length > 0 && (
                 <button
                   onClick={() => {
                     if (confirm('Clear all activities and start over?')) {
@@ -698,7 +794,28 @@ export function TripPlanner({ onNavigate, preselectedDestination }: TripPlannerP
                   <X className="w-4 h-4" />
                   <span className="hidden sm:inline">Clear All</span>
                 </button>
+              )}              {/* Download buttons */}
+              {itinerary.length > 0 && (
+                <>
+                  <button
+                    onClick={downloadPDF}
+                    className="btn-primary flex items-center space-x-2"
+                    title="Download as PDF"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span className="hidden sm:inline">PDF</span>
+                  </button>
+                  <button
+                    onClick={downloadJSON}
+                    className="btn-secondary flex items-center space-x-2"
+                    title="Download as JSON backup"
+                  >
+                    <Database className="w-4 h-4" />
+                    <span className="hidden sm:inline">JSON</span>
+                  </button>
+                </>
               )}
+              
               <button
                 onClick={addItineraryItem}
                 className="btn-secondary flex items-center space-x-2"
