@@ -145,12 +145,12 @@ export function DestinationDiscovery({ onNavigate }: DestinationDiscoveryProps) 
               <LoadingCard key={i} />
             ))}
           </div>
-        ) : recommendations.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {recommendations.map((rec) => (
+        ) : recommendations.length > 0 ? (          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {recommendations.map((rec, index) => (
               <DestinationCard
                 key={rec.id}
                 recommendation={rec}
+                index={index}
                 onExplore={() => setSelectedRecommendation(rec)}
                 onSave={(recommendation) => {
                   // Handle saving to favorites - could dispatch to context

@@ -10,6 +10,7 @@ interface MyTripsProps {
 
 export function MyTrips({ onNavigate }: MyTripsProps) {
   const user = useUser();
+  const [selectedStatus, setSelectedStatus] = useState<'all' | 'planning' | 'booked' | 'completed' | 'cancelled'>('all');
   const [trips] = useState<Trip[]>([
     // Mock trips for demonstration
     {
@@ -53,8 +54,8 @@ export function MyTrips({ onNavigate }: MyTripsProps) {
         travelStyle: ['relaxation', 'wellness'],
         coordinates: { lat: -8.3405, lng: 115.0920 }
       },
-      startDate: new Date('2025-07-10'),
-      endDate: new Date('2025-07-17'),
+      startDate: new Date('2025-01-10'),
+      endDate: new Date('2025-01-18'),
       budget: 1800,
       itinerary: [],
       status: 'booked' as const,
@@ -63,8 +64,6 @@ export function MyTrips({ onNavigate }: MyTripsProps) {
       updatedAt: new Date('2024-12-10')
     }
   ]);
-
-  const [selectedStatus, setSelectedStatus] = useState<'all' | 'planning' | 'booked' | 'completed' | 'cancelled'>('all');
 
   const filteredTrips = selectedStatus === 'all' 
     ? trips 
@@ -93,6 +92,7 @@ export function MyTrips({ onNavigate }: MyTripsProps) {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
   };
+
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
@@ -151,7 +151,9 @@ export function MyTrips({ onNavigate }: MyTripsProps) {
           <p className="text-xl text-gray-600">
             Manage your travel plans and memories
           </p>
-        </motion.div>        {/* Filter Tabs */}
+        </motion.div>
+
+        {/* Filter Tabs */}
         <motion.div 
           className="flex space-x-2 mb-12 glass rounded-2xl p-2 max-w-2xl mx-auto"
           initial={{ opacity: 0, y: 20 }}
@@ -188,7 +190,9 @@ export function MyTrips({ onNavigate }: MyTripsProps) {
               <span className="relative z-10">{label} ({count})</span>
             </motion.button>
           ))}
-        </motion.div>        {/* Trips Grid */}
+        </motion.div>
+
+        {/* Trips Grid */}
         <AnimatePresence mode="wait">
           {filteredTrips.length === 0 ? (
             <motion.div 
@@ -242,7 +246,8 @@ export function MyTrips({ onNavigate }: MyTripsProps) {
                   transition={{ delay: index * 0.1, duration: 0.6 }}
                   whileHover={{ y: -8, scale: 1.02 }}
                   layout
-                >                  {/* Trip Header */}
+                >
+                  {/* Trip Header */}
                   <div className="flex justify-between items-start mb-6">
                     <div className="flex-1">
                       <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">
@@ -269,29 +274,6 @@ export function MyTrips({ onNavigate }: MyTripsProps) {
                     whileHover={{ scale: 1.02 }}
                     transition={{ duration: 0.3 }}
                   >
-                    {/* Animated particles */}
-                    <div className="absolute inset-0">
-                      {[...Array(8)].map((_, i) => (
-                        <motion.div
-                          key={i}
-                          className="absolute w-2 h-2 bg-white rounded-full opacity-30"
-                          style={{
-                            left: `${10 + i * 12}%`,
-                            top: `${20 + (i % 3) * 20}%`,
-                          }}
-                          animate={{
-                            y: [-5, 5, -5],
-                            opacity: [0.3, 0.7, 0.3],
-                          }}
-                          transition={{
-                            duration: 2 + i * 0.3,
-                            repeat: Infinity,
-                            ease: "easeInOut",
-                          }}
-                        />
-                      ))}
-                    </div>
-                    
                     <div className="absolute inset-0 flex items-center justify-center">
                       <motion.div
                         className="text-center text-white"
@@ -302,7 +284,9 @@ export function MyTrips({ onNavigate }: MyTripsProps) {
                         <p className="text-lg font-semibold opacity-90">{trip.destination.name}</p>
                       </motion.div>
                     </div>
-                  </motion.div>                  {/* Trip Details */}
+                  </motion.div>
+
+                  {/* Trip Details */}
                   <div className="space-y-4 mb-6">
                     {[
                       { icon: Calendar, text: `${formatDate(trip.startDate)} - ${formatDate(trip.endDate)}`, color: 'text-blue-500' },
@@ -316,7 +300,7 @@ export function MyTrips({ onNavigate }: MyTripsProps) {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.1 + i * 0.05 }}
-                        whileHover={{ scale: 1.02, backgroundColor: "rgba(59, 130, 246, 0.1)" }}
+                        whileHover={{ scale: 1.02 }}
                       >
                         <detail.icon className={`w-4 h-4 mr-3 ${detail.color}`} />
                         <span>{detail.text}</span>
@@ -326,24 +310,27 @@ export function MyTrips({ onNavigate }: MyTripsProps) {
 
                   {/* Trip Actions */}
                   <div className="flex space-x-2 pt-4 border-t border-gray-100">
+                    <motion.button
+                      className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm font-medium py-3 px-3 rounded-xl transition-all duration-300 flex items-center justify-center space-x-2"
+                      whileHover={{ scale: 1.05, y: -2 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      <Edit3 className="w-4 h-4" />
+                      <span>Edit</span>
+                    </motion.button>
+                    
                     {[
-                      { icon: Edit3, label: 'Edit', color: 'blue', action: () => {} },
-                      { icon: Share, color: 'green', action: () => {} },
-                      { icon: Star, color: 'yellow', action: () => {} },
-                      { icon: Trash2, color: 'red', action: () => {} }
+                      { icon: Share, color: 'green' },
+                      { icon: Star, color: 'yellow' },
+                      { icon: Trash2, color: 'red' }
                     ].map((action, i) => (
                       <motion.button
                         key={i}
-                        onClick={action.action}
-                        className={`${action.label ? 'flex-1' : 'p-3'} bg-${action.color}-50 hover:bg-${action.color}-100 text-${action.color}-600 text-sm font-medium py-3 px-3 rounded-xl transition-all duration-300 flex items-center justify-center space-x-2`}
-                        whileHover={{ scale: 1.05, y: -2 }}
-                        whileTap={{ scale: 0.95 }}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 + i * 0.05 }}
+                        className={`p-3 bg-${action.color}-50 hover:bg-${action.color}-100 text-${action.color}-600 rounded-xl transition-all duration-300`}
+                        whileHover={{ scale: 1.1, y: -2 }}
+                        whileTap={{ scale: 0.9 }}
                       >
                         <action.icon className="w-4 h-4" />
-                        {action.label && <span>{action.label}</span>}
                       </motion.button>
                     ))}
                   </div>
