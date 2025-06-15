@@ -14,6 +14,7 @@ type AppAction =
   | { type: 'UPDATE_PERSONALITY'; payload: Partial<PersonalityProfile> }
   | { type: 'UPDATE_PREFERENCES'; payload: Partial<TravelPreferences> }
   | { type: 'SET_CURRENT_TRIP'; payload: Trip }
+  | { type: 'ADD_TRIP'; payload: Trip }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'CLEAR_USER' };
@@ -54,9 +55,17 @@ function appReducer(state: AppState, action: AppAction): AppState {
           preferences: { ...state.user.preferences, ...action.payload }
         }
       };
-    
-    case 'SET_CURRENT_TRIP':
+      case 'SET_CURRENT_TRIP':
       return { ...state, currentTrip: action.payload };
+    
+    case 'ADD_TRIP':
+      return {
+        ...state,
+        user: state.user ? {
+          ...state.user,
+          tripHistory: [...(state.user.tripHistory || []), action.payload]
+        } : state.user
+      };
     
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Calendar, MapPin, Users, DollarSign, Clock, Plus, X, Wand2, Loader2, Sparkles, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Calendar, MapPin, Users, DollarSign, Clock, Plus, X, Wand2, Loader2, Sparkles, ArrowLeft, ArrowRight, Download, FileDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useUser } from '../context/AppContext';
+import { useUser, useAppContext } from '../context/AppContext';
 import { geminiService } from '../services/geminiService';
+import { PDFService } from '../services/pdfService';
 import type { ItineraryItem } from '../types';
 
 interface TripPlannerProps {
@@ -16,6 +17,7 @@ interface TripPlannerProps {
 
 export function TripPlanner({ onNavigate, preselectedDestination }: TripPlannerProps) {
   const user = useUser();
+  const { dispatch } = useAppContext();
   const [tripDetails, setTripDetails] = useState({
     title: '',
     destination: preselectedDestination ? `${preselectedDestination.name}, ${preselectedDestination.country}` : '',
@@ -24,10 +26,106 @@ export function TripPlanner({ onNavigate, preselectedDestination }: TripPlannerP
     budget: preselectedDestination?.estimatedCost ? String(preselectedDestination.estimatedCost * 7) : '',
     travelers: 1,
   });
-
   const [itinerary, setItinerary] = useState<Partial<ItineraryItem>[]>([]);
   const [currentStep, setCurrentStep] = useState(1);
   const [isGeneratingItinerary, setIsGeneratingItinerary] = useState(false);
+
+  // PDF and Save functionality
+  const downloadPDF = () => {
+    if (itinerary.length === 0) {
+      alert('Please add some activities to your itinerary first.');
+      return;
+    }
+
+    if (!tripDetails.title || !tripDetails.destination || !tripDetails.startDate || !tripDetails.endDate) {
+      alert('Please complete all trip details first.');
+      return;
+    }
+
+    try {
+      const tripData = {
+        destination: tripDetails.destination,
+        startDate: new Date(tripDetails.startDate),
+        endDate: new Date(tripDetails.endDate),
+        travelers: tripDetails.travelers,
+        budget: tripDetails.budget,
+      };
+
+      PDFService.generateItineraryPDF(itinerary as ItineraryItem[], tripData);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    }
+  };
+
+  const downloadJSON = () => {
+    if (itinerary.length === 0) {
+      alert('Please add some activities to your itinerary first.');
+      return;
+    }
+
+    try {
+      const tripData = {
+        destination: tripDetails.destination,
+        startDate: new Date(tripDetails.startDate),
+        endDate: new Date(tripDetails.endDate),
+        travelers: tripDetails.travelers,
+        budget: tripDetails.budget,
+      };
+
+      PDFService.generateJSONBackup(itinerary as ItineraryItem[], tripData);
+    } catch (error) {
+      console.error('Error generating JSON backup:', error);
+      alert('Failed to generate backup. Please try again.');
+    }
+  };
+  const saveTrip = () => {
+    if (itinerary.length === 0) {
+      alert('Please add some activities to your itinerary first.');
+      return;
+    }
+
+    try {
+      // Create a minimal destination object
+      const destination = {
+        id: Date.now().toString(),
+        name: tripDetails.destination,
+        country: 'Unknown',
+        description: '',
+        imageUrl: '',
+        averageCost: parseInt(tripDetails.budget) || 0,
+        bestMonths: [],
+        activities: [],
+        mood: [],
+        travelStyle: [],
+        coordinates: { lat: 0, lng: 0 }
+      };
+
+      const trip = {
+        id: Date.now().toString(),
+        title: tripDetails.title,
+        destination: destination,
+        startDate: new Date(tripDetails.startDate),
+        endDate: new Date(tripDetails.endDate),
+        travelers: tripDetails.travelers,
+        budget: parseInt(tripDetails.budget),
+        itinerary: itinerary.map((item, index) => ({
+          ...item,
+          id: item.id || `item-${index}-${Date.now()}`
+        })) as ItineraryItem[],
+        status: 'planning' as const,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      dispatch({ type: 'ADD_TRIP', payload: trip });
+      alert('🎉 Trip saved successfully!');
+      setTimeout(() => onNavigate?.('trips'), 1000);
+    } catch (error) {
+      console.error('Error saving trip:', error);
+      alert('Failed to save trip. Please try again.');
+    }
+  };
 
   // Animation variants
   const containerVariants = {
@@ -502,8 +600,7 @@ export function TripPlanner({ onNavigate, preselectedDestination }: TripPlannerP
                   <h2 className="text-3xl font-bold text-gray-900">Build Your Itinerary</h2>
                   <p className="text-gray-600 mt-2">Add activities or let AI create your perfect trip</p>
                 </div>
-                
-                <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-wrap gap-3">
                   <motion.button
                     onClick={generateAIItinerary}
                     disabled={isGeneratingItinerary || !tripDetails.destination}
@@ -533,6 +630,31 @@ export function TripPlanner({ onNavigate, preselectedDestination }: TripPlannerP
                     <Plus className="w-4 h-4" />
                     <span>Add Activity</span>
                   </motion.button>
+
+                  {/* Download buttons - show when activities exist */}
+                  {itinerary.length > 0 && (
+                    <>
+                      <motion.button
+                        onClick={downloadPDF}
+                        className="btn-secondary flex items-center space-x-2 bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <FileDown className="w-4 h-4" />
+                        <span>PDF</span>
+                      </motion.button>
+                      
+                      <motion.button
+                        onClick={downloadJSON}
+                        className="btn-secondary flex items-center space-x-2 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>JSON</span>
+                      </motion.button>
+                    </>
+                  )}
                 </div>
               </motion.div>
 
@@ -812,10 +934,8 @@ export function TripPlanner({ onNavigate, preselectedDestination }: TripPlannerP
                     </div>
                   </div>
                 </motion.div>
-              </motion.div>
-
-              <motion.div 
-                className="flex justify-between pt-8"
+              </motion.div>              <motion.div 
+                className="flex flex-col sm:flex-row justify-between gap-4 pt-8"
                 variants={itemVariants}
               >
                 <motion.button
@@ -828,21 +948,44 @@ export function TripPlanner({ onNavigate, preselectedDestination }: TripPlannerP
                   <span>Back to Itinerary</span>
                 </motion.button>
                 
-                <motion.button
-                  className="btn-primary px-8 py-4 text-lg rounded-full"
-                  onClick={() => {
-                    // Save trip logic here
-                    alert('🎉 Trip saved successfully!');
-                    setTimeout(() => onNavigate?.('trips'), 1000);
-                  }}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  <span className="flex items-center space-x-2">
-                    <span>Save Trip</span>
-                    <Sparkles className="w-5 h-5" />
-                  </span>
-                </motion.button>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  {/* Download Options - Only show if we have activities */}
+                  {itinerary.length > 0 && (
+                    <>
+                      <motion.button
+                        onClick={downloadPDF}
+                        className="btn-secondary flex items-center space-x-2 bg-red-50 border-red-200 text-red-700 hover:bg-red-100"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <FileDown className="w-4 h-4" />
+                        <span>Download PDF</span>
+                      </motion.button>
+                      
+                      <motion.button
+                        onClick={downloadJSON}
+                        className="btn-secondary flex items-center space-x-2 bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>JSON Backup</span>
+                      </motion.button>
+                    </>
+                  )}
+                  
+                  <motion.button
+                    className="btn-primary px-8 py-4 text-lg rounded-full"
+                    onClick={saveTrip}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <span className="flex items-center space-x-2">
+                      <span>Save Trip</span>
+                      <Sparkles className="w-5 h-5" />
+                    </span>
+                  </motion.button>
+                </div>
               </motion.div>
             </motion.div>
           )}
